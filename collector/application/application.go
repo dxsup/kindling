@@ -7,6 +7,7 @@ import (
 	"github.com/Kindling-project/kindling/collector/analyzer"
 	"github.com/Kindling-project/kindling/collector/analyzer/loganalyzer"
 	"github.com/Kindling-project/kindling/collector/analyzer/network"
+	"github.com/Kindling-project/kindling/collector/analyzer/simpleanalyzer"
 	"github.com/Kindling-project/kindling/collector/analyzer/tcpmetricanalyzer"
 	"github.com/Kindling-project/kindling/collector/component"
 	"github.com/Kindling-project/kindling/collector/consumer"
@@ -15,6 +16,7 @@ import (
 	"github.com/Kindling-project/kindling/collector/consumer/processor/k8sprocessor"
 	"github.com/Kindling-project/kindling/collector/consumer/processor/kindlingformatprocessor"
 	"github.com/Kindling-project/kindling/collector/receiver"
+	"github.com/Kindling-project/kindling/collector/receiver/selfscrapereceiver"
 	"github.com/Kindling-project/kindling/collector/receiver/udsreceiver"
 	"github.com/spf13/viper"
 	"go.uber.org/multierr"
@@ -24,7 +26,7 @@ type Application struct {
 	viper             *viper.Viper
 	componentsFactory *ComponentsFactory
 	telemetry         *component.TelemetryManager
-	receiver          receiver.Receiver
+	receivers         []receiver.Receiver
 	analyzerManager   analyzer.Manager
 }
 
@@ -33,6 +35,7 @@ func New() (*Application, error) {
 		viper:             viper.New(),
 		componentsFactory: NewComponentsFactory(),
 		telemetry:         component.NewTelemetryManager(),
+		receivers:         make([]receiver.Receiver, 0),
 	}
 	app.registerFactory()
 	// Initialize flags
@@ -56,15 +59,22 @@ func (a *Application) Run() error {
 		return fmt.Errorf("failed to start application: %v", err)
 	}
 	// Wait until the receiver shutdowns
-	err = a.receiver.Start()
-	if err != nil {
-		return fmt.Errorf("failed to start application: %v", err)
+	for _, rec := range a.receivers {
+		err = rec.Start()
+		if err != nil {
+			return fmt.Errorf("failed to start application: %v", err)
+		}
 	}
 	return nil
 }
 
 func (a *Application) Shutdown() error {
-	return multierr.Combine(a.receiver.Shutdown(), a.analyzerManager.ShutdownAll(a.telemetry.Telemetry.Logger))
+	errs := make([]error, 0)
+	for _, rec := range a.receivers {
+		errs = append(errs, rec.Shutdown())
+	}
+	errs = append(errs, a.analyzerManager.ShutdownAll(a.telemetry.Telemetry.Logger))
+	return multierr.Combine(errs...)
 }
 
 func initFlags() error {
@@ -80,6 +90,8 @@ func (a *Application) registerFactory() {
 	a.componentsFactory.RegisterAnalyzer(tcpmetricanalyzer.TcpMetric.String(), tcpmetricanalyzer.NewTcpMetricAnalyzer, &tcpmetricanalyzer.Config{})
 	a.componentsFactory.RegisterExporter(logexporter.Type, logexporter.New, &logexporter.Config{})
 	a.componentsFactory.RegisterAnalyzer(loganalyzer.Type.String(), loganalyzer.New, &loganalyzer.Config{})
+	a.componentsFactory.RegisterReceiver(selfscrapereceiver.Type, selfscrapereceiver.New, &selfscrapereceiver.Config{})
+	a.componentsFactory.RegisterAnalyzer(simpleanalyzer.Type.String(), simpleanalyzer.New, &simpleanalyzer.Config{})
 }
 
 func (a *Application) readInConfig(path string) error {
@@ -119,14 +131,21 @@ func (a *Application) buildPipeline() error {
 	k8sMetadataProcessor2 := k8sProcessorFactory.NewFunc(k8sProcessorFactory.Config, a.telemetry.Telemetry, otelExporter)
 	tcpAnalyzerFactory := a.componentsFactory.Analyzers[tcpmetricanalyzer.TcpMetric.String()]
 	tcpAnalyzer := tcpAnalyzerFactory.NewFunc(tcpAnalyzerFactory.Config, a.telemetry.Telemetry, []consumer.Consumer{k8sMetadataProcessor2})
+	// 4. Simple analyzer
+	simpleAnalyzerFactory := a.componentsFactory.Analyzers[simpleanalyzer.Type.String()]
+	simpleAnalyzer := simpleAnalyzerFactory.NewFunc(simpleAnalyzerFactory.Config, a.telemetry.Telemetry, []consumer.Consumer{otelExporter})
 	// Initialize receiver packaged with multiple analyzers
-	analyzerManager, err := analyzer.NewManager(networkAnalyzer, tcpAnalyzer)
+	analyzerManager, err := analyzer.NewManager(networkAnalyzer, tcpAnalyzer, simpleAnalyzer)
 	if err != nil {
 		return fmt.Errorf("error happened while creating analyzer manager: %w", err)
 	}
 	a.analyzerManager = analyzerManager
 	udsReceiverFactory := a.componentsFactory.Receivers[udsreceiver.Uds]
 	udsReceiver := udsReceiverFactory.NewFunc(udsReceiverFactory.Config, a.telemetry.Telemetry, analyzerManager)
-	a.receiver = udsReceiver
+	a.receivers = append(a.receivers, udsReceiver)
+
+	selfScrapeReceiverFactory := a.componentsFactory.Receivers[selfscrapereceiver.Type]
+	selfScrapeReceiver := selfScrapeReceiverFactory.NewFunc(selfScrapeReceiverFactory.Config, a.telemetry.Telemetry, analyzerManager)
+	a.receivers = append(a.receivers, selfScrapeReceiver)
 	return nil
 }
