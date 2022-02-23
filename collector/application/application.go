@@ -20,6 +20,7 @@ import (
 	"github.com/Kindling-project/kindling/collector/receiver/udsreceiver"
 	"github.com/spf13/viper"
 	"go.uber.org/multierr"
+	"sync"
 )
 
 type Application struct {
@@ -28,6 +29,7 @@ type Application struct {
 	telemetry         *component.TelemetryManager
 	receivers         []receiver.Receiver
 	analyzerManager   analyzer.Manager
+	shutdownWG        sync.WaitGroup
 }
 
 func New() (*Application, error) {
@@ -61,10 +63,12 @@ func (a *Application) Run() error {
 	// Wait until the receiver shutdowns
 	for _, rec := range a.receivers {
 		err = rec.Start()
+		a.shutdownWG.Add(1)
 		if err != nil {
 			return fmt.Errorf("failed to start application: %v", err)
 		}
 	}
+	a.shutdownWG.Wait()
 	return nil
 }
 
@@ -72,6 +76,7 @@ func (a *Application) Shutdown() error {
 	errs := make([]error, 0)
 	for _, rec := range a.receivers {
 		errs = append(errs, rec.Shutdown())
+		a.shutdownWG.Done()
 	}
 	errs = append(errs, a.analyzerManager.ShutdownAll(a.telemetry.Telemetry.Logger))
 	return multierr.Combine(errs...)
