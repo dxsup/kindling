@@ -189,7 +189,6 @@ func (ca *CpuAnalyzer) PutEventToSegments(pid uint32, tid uint32, threadName str
 		// If the timeSegment is full, we clear half of its elements.
 		// Note the offset will be times of maxSegmentSize when no events with this tid come for long time,
 		// so the timeSegment will be cleared multiple times until it can accommodate the events.
-		// TODO: clear the whole elements if startOffset>=1.5*maxSegmentSize
 		if startOffset >= maxSegmentSize || endOffset > maxSegmentSize {
 			if startOffset*2 >= 3*maxSegmentSize {
 				// clear all elements
@@ -269,4 +268,27 @@ func (ca *CpuAnalyzer) trimExitedThread(pid uint32, tid uint32) {
 
 	cacheElem := deleteTid{pid: pid, tid: tid, exitTime: time.Now()}
 	ca.tidExpiredQueue.Push(cacheElem)
+}
+
+func (ca *CpuAnalyzer) sendEventDirectly(pid uint32, tid uint32, threadName string, event TimedEvent) {
+	ca.lock.Lock()
+	defer ca.lock.Unlock()
+
+	newTimeSegments := &TimeSegments{
+		Pid:        pid,
+		Tid:        tid,
+		ThreadName: threadName,
+		BaseTime:   event.StartTimestamp() / nanoToSeconds,
+	}
+	segment := newSegment(newTimeSegments.BaseTime*nanoToSeconds,
+		newTimeSegments.BaseTime*nanoToSeconds)
+
+	segment.putTimedEvent(event)
+
+	segment.IndexTimestamp = time.Now().String()
+	dataGroup := segment.toDataGroup(newTimeSegments)
+
+	for _, nexConsumer := range ca.nextConsumers {
+		_ = nexConsumer.Consume(dataGroup)
+	}
 }
