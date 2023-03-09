@@ -103,6 +103,7 @@ func (a *TcpConnectAnalyzer) consumeChannelEvent(event *model.KindlingEvent) {
 		}
 		connectStats, err = a.connectMonitor.ReadInConnectExitSyscall(event)
 	case constnames.TcpConnectEvent:
+		// TODO filter the UDP events
 		connectStats, err = a.connectMonitor.ReadInTcpConnect(event)
 	case constnames.TcpSetStateEvent:
 		connectStats, err = a.connectMonitor.ReadInTcpSetState(event)
@@ -156,6 +157,8 @@ func filterRequestEvent(event *model.KindlingEvent) bool {
 }
 
 func (a *TcpConnectAnalyzer) trimConnectionsWithTcpStat() {
+	a.telemetry.Logger.Debugf("Checking connections' state by reviewing net/tcp file. Period %d seconds",
+		a.config.WaitEventSecond/3)
 	connStats := a.connectMonitor.TrimConnectionsWithTcpStat(a.config.WaitEventSecond)
 	for _, connStat := range connStats {
 		dataGroup := a.generateDataGroup(connStat)

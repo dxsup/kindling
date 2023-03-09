@@ -147,8 +147,10 @@ func (c *ConnectMonitor) ReadInTcpConnect(event *model.KindlingEvent) (*Connecti
 		connStats.StateMachine = NewStateMachine(Inprogress, c.statesResource, connStats)
 		c.connMap[connKey] = connStats
 	} else {
-		// Not possible to enter this branch
-		c.logger.Info("Receive another unexpected tcp_connect event", zap.String("connKey", connKey.String()))
+		// Not possible to enter this branch in most cases.
+		// If entering, we ignore the last tcp_connect.
+		c.logger.Debug("Receive another unexpected tcp_connect event", zap.String("connKey", connKey.String()))
+		connStats.InitialTimestamp = event.Timestamp
 		connStats.EndTimestamp = event.Timestamp
 		connStats.Code = int(retValueInt)
 	}
@@ -274,6 +276,7 @@ func (c *ConnectMonitor) TrimConnectionsWithTcpStat(waitForEventSecond int) []*C
 				ret = append(ret, stats)
 			}
 		} else if state == synSent || state == synRecv {
+			c.logger.Debugf("Found syncSent/syncRecv stat, skip: %s", key.String())
 			continue
 		} else {
 			// These states are behind the ESTABLISHED state.

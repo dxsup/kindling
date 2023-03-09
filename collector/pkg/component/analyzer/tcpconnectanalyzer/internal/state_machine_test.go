@@ -1,6 +1,10 @@
 package internal
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestCallback(t *testing.T) {
 	connMap := make(map[ConnKey]*ConnectionStats)
@@ -23,21 +27,17 @@ func TestCallback(t *testing.T) {
 	connMap[connKey] = connStats
 
 	stats, err := connStats.StateMachine.ReceiveEvent(tcpConnectNoError, connMap)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if connStats.StateMachine.currentStateType != Inprogress {
-		t.Errorf("expected inprogress, got %v", connStats.StateMachine.currentStateType)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, Inprogress, connStats.StateMachine.currentStateType)
 
 	stats, err = connStats.StateMachine.ReceiveEvent(tcpSetStateToEstablished, connMap)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if stats == nil {
-		t.Errorf("expected stats emitted, but none got")
-	}
-	if connStats.StateMachine.currentStateType != Success {
-		t.Errorf("expected success, got %v", connStats.StateMachine.currentStateType)
-	}
+	assert.NoError(t, err)
+	assert.NotNil(t, stats)
+	assert.Equal(t, Success, connStats.StateMachine.currentStateType)
+
+	connStats.StateMachine = NewStateMachine(Inprogress, statesResource, connStats)
+	stats, err = connStats.StateMachine.ReceiveEvent(expiredEvent, connMap)
+	assert.Equal(t, Failure, connStats.StateMachine.currentStateType)
+	_, ok := connMap[connKey]
+	assert.Equal(t, false, ok)
 }
