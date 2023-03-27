@@ -151,7 +151,7 @@ func (a *Application) buildPipeline() error {
 	a.receiver = cgoReceiver
 
 	a.controllerFactory.RegistModule("profile",
-		cpuAnalyzer.(*cpuanalyzer.CpuAnalyzer).ProfileModule,
+		//cpuAnalyzer.(*cpuanalyzer.CpuAnalyzer).ProfileModule,
 		cgoReceiver.(*cgoreceiver.CgoReceiver).ProfileModule,
 	)
 
