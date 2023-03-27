@@ -122,23 +122,25 @@ func (a *Application) buildPipeline() error {
 	//k8sMetadataProcessor := k8sProcessorFactory.NewFunc(k8sProcessorFactory.Config, a.telemetry.GetTelemetryTools(k8sprocessor.K8sMetadata), aggregateProcessor)
 	// Initialize all analyzers
 	// 1. Common network request analyzer
-	networkAnalyzerFactory := a.componentsFactory.Analyzers[network.Network.String()]
+	//networkAnalyzerFactory := a.componentsFactory.Analyzers[network.Network.String()]
 	// Now NetworkAnalyzer must be initialized before any other analyzers, because it will
 	// use its configuration to initialize the conntracker module which is also used by others.
-	networkAnalyzer := networkAnalyzerFactory.NewFunc(networkAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(network.Network.String()), []consumer.Consumer{logExporter})
+	//networkAnalyzer := networkAnalyzerFactory.NewFunc(networkAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(network.Network.String()), []consumer.Consumer{logExporter})
 	// 2. Layer 4 TCP events analyzer
 	//aggregateProcessorForTcp := aggregateProcessorFactory.NewFunc(aggregateProcessorFactory.Config, a.telemetry.GetTelemetryTools(aggregateprocessor.Type), otelExporter)
 	//k8sMetadataProcessor2 := k8sProcessorFactory.NewFunc(k8sProcessorFactory.Config, a.telemetry.GetTelemetryTools(aggregateprocessor.Type), aggregateProcessorForTcp)
-	tcpAnalyzerFactory := a.componentsFactory.Analyzers[tcpmetricanalyzer.TcpMetric.String()]
-	tcpAnalyzer := tcpAnalyzerFactory.NewFunc(tcpAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(tcpmetricanalyzer.TcpMetric.String()), []consumer.Consumer{logExporter})
-	tcpConnectAnalyzerFactory := a.componentsFactory.Analyzers[tcpconnectanalyzer.Type.String()]
-	tcpConnectAnalyzer := tcpConnectAnalyzerFactory.NewFunc(tcpConnectAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(tcpconnectanalyzer.Type.String()), []consumer.Consumer{logExporter})
+	//tcpAnalyzerFactory := a.componentsFactory.Analyzers[tcpmetricanalyzer.TcpMetric.String()]
+	//tcpAnalyzer := tcpAnalyzerFactory.NewFunc(tcpAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(tcpmetricanalyzer.TcpMetric.String()), []consumer.Consumer{logExporter})
+	//tcpConnectAnalyzerFactory := a.componentsFactory.Analyzers[tcpconnectanalyzer.Type.String()]
+	//tcpConnectAnalyzer := tcpConnectAnalyzerFactory.NewFunc(tcpConnectAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(tcpconnectanalyzer.Type.String()), []consumer.Consumer{logExporter})
+	//
+	//cpuAnalyzerFactory := a.componentsFactory.Analyzers[cpuanalyzer.CpuProfile.String()]
+	//cpuAnalyzer := cpuAnalyzerFactory.NewFunc(cpuAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(cpuanalyzer.CpuProfile.String()), []consumer.Consumer{logExporter})
 
-	cpuAnalyzerFactory := a.componentsFactory.Analyzers[cpuanalyzer.CpuProfile.String()]
-	cpuAnalyzer := cpuAnalyzerFactory.NewFunc(cpuAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(cpuanalyzer.CpuProfile.String()), []consumer.Consumer{logExporter})
-
+	logAnalyzerFactory := a.componentsFactory.Analyzers[loganalyzer.Type.String()]
+	logAnalyzer := logAnalyzerFactory.NewFunc(logAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(loganalyzer.Type.String()), []consumer.Consumer{logExporter})
 	// Initialize receiver packaged with multiple analyzers
-	analyzerManager, err := analyzer.NewManager(networkAnalyzer, tcpAnalyzer, tcpConnectAnalyzer, cpuAnalyzer)
+	analyzerManager, err := analyzer.NewManager(logAnalyzer)
 	if err != nil {
 		return fmt.Errorf("error happened while creating analyzer manager: %w", err)
 	}
