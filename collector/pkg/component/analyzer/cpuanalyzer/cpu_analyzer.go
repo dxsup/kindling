@@ -106,7 +106,6 @@ func (ca *CpuAnalyzer) ConsumeTransactionIdEvent(event *model.KindlingEvent) {
 		PidString:   strconv.FormatUint(uint64(event.GetPid()), 10),
 		ContainerId: event.GetContainerId(),
 	}
-	//ca.sendEventDirectly(event.GetPid(), event.Ctx.ThreadInfo.GetTid(), event.Ctx.ThreadInfo.Comm, ev)
 	ca.PutEventToSegments(event.GetPid(), event.Ctx.ThreadInfo.GetTid(), event.Ctx.ThreadInfo.Comm, ev)
 	if ca.cfg.OpenJavaTraceSampling {
 		ca.analyzerJavaTraceTime(ev)
@@ -162,7 +161,6 @@ func (ca *CpuAnalyzer) ConsumeJavaFutexEvent(event *model.KindlingEvent) {
 			ev.DataVal = string(userAttributes.GetValue())
 		}
 	}
-	//ca.sendEventDirectly(event.GetPid(), event.Ctx.ThreadInfo.GetTid(), event.Ctx.ThreadInfo.Comm, ev)
 	ca.PutEventToSegments(event.GetPid(), event.Ctx.ThreadInfo.GetTid(), event.Ctx.ThreadInfo.Comm, ev)
 }
 
@@ -225,17 +223,16 @@ func (ca *CpuAnalyzer) ConsumeCpuEvent(event *model.KindlingEvent) {
 			ev.Stack = string(userAttributes.GetValue())
 		}
 	}
-	if ce := ca.telemetry.Logger.Check(zapcore.DebugLevel, ""); ce != nil {
-		ca.telemetry.Logger.Debug(fmt.Sprintf("Receive CpuEvent: pid=%d, tid=%d, comm=%s, %+v", event.GetPid(),
-			event.Ctx.ThreadInfo.GetTid(), event.Ctx.ThreadInfo.Comm, ev))
-	}
-	//ca.sendEventDirectly(event.GetPid(), event.Ctx.ThreadInfo.GetTid(), event.Ctx.ThreadInfo.Comm, ev)
 	ca.PutEventToSegments(event.GetPid(), event.Ctx.ThreadInfo.GetTid(), event.Ctx.ThreadInfo.Comm, ev)
 }
 
 var nanoToSeconds uint64 = 1e9
 
 func (ca *CpuAnalyzer) PutEventToSegments(pid uint32, tid uint32, threadName string, event TimedEvent) {
+	if ce := ca.telemetry.Logger.Check(zapcore.DebugLevel, ""); ce != nil {
+		ca.telemetry.Logger.Debug(fmt.Sprintf("Receive %s: pid=%d, tid=%d, comm=%s, %+v", event.Kind(), pid,
+			tid, threadName, event))
+	}
 	ca.lock.Lock()
 	defer ca.lock.Unlock()
 	tidCpuEvents, exist := ca.cpuPidEvents[pid]

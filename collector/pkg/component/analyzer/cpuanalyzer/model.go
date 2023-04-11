@@ -8,14 +8,14 @@ import (
 	"github.com/Kindling-project/kindling/collector/pkg/model/constnames"
 )
 
-type TimedEventKind int
+type TimedEventKind string
 
 const (
-	TimedCpuEventKind TimedEventKind = iota
-	TimedJavaFutexEventKind
-	TimedTransactionIdEventKind
-	TimedApmSpanEventKind
-	TimedInnerCallEventKind
+	TimedCpuEventKind           TimedEventKind = "CpuEvent"
+	TimedJavaFutexEventKind                    = "JavaFutexEvent"
+	TimedTransactionIdEventKind                = "TransactionIdEvent"
+	TimedApmSpanEventKind                      = "ApmSpanEvent"
+	TimedInnerCallEventKind                    = "InnerCallEvent"
 )
 
 const (
