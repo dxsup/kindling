@@ -11,6 +11,7 @@ package cgoreceiver
 import "C"
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 	"unsafe"
@@ -150,6 +151,9 @@ func convertEvent(cgoEvent *CKindlingEventForGo) *model.KindlingEvent {
 
 	ev.ParamsNumber = uint16(cgoEvent.paramsNumber)
 	ev.Latency = uint64(cgoEvent.latency)
+	if ev.Latency > uint64(time.Hour) {
+		log.Printf("event: %s, pid: %d, timestamp: %d, latency is too large: %d", ev.Name, ev.GetPid(), ev.Timestamp, ev.Latency)
+	}
 	for i := 0; i < int(ev.ParamsNumber); i++ {
 		ev.UserAttributes[i].Key = C.GoString(cgoEvent.userAttributes[i].key)
 		userAttributesLen := cgoEvent.userAttributes[i].len
