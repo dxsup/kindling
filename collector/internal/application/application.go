@@ -87,7 +87,7 @@ func (a *Application) registerFactory() {
 	a.componentsFactory.RegisterProcessor(aggregateprocessor.Type, aggregateprocessor.New, aggregateprocessor.NewDefaultConfig())
 	a.componentsFactory.RegisterAnalyzer(tcpconnectanalyzer.Type.String(), tcpconnectanalyzer.New, tcpconnectanalyzer.NewDefaultConfig())
 	a.componentsFactory.RegisterExporter(cameraexporter.Type, cameraexporter.New, cameraexporter.NewDefaultConfig())
-	a.componentsFactory.RegisterExporter(prometheusexporter.Type, prometheusexporter.NewExporter, prometheusexporter.Config{})
+	a.componentsFactory.RegisterExporter(prometheusexporter.Type, prometheusexporter.NewExporter, &prometheusexporter.Config{})
 }
 
 func (a *Application) readInConfig(path string) error {
