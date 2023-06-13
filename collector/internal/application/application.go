@@ -18,6 +18,7 @@ import (
 	"github.com/Kindling-project/kindling/collector/pkg/component/consumer/exporter/cameraexporter"
 	"github.com/Kindling-project/kindling/collector/pkg/component/consumer/exporter/logexporter"
 	"github.com/Kindling-project/kindling/collector/pkg/component/consumer/exporter/otelexporter"
+	"github.com/Kindling-project/kindling/collector/pkg/component/consumer/exporter/prometheusexporter"
 	"github.com/Kindling-project/kindling/collector/pkg/component/consumer/processor/aggregateprocessor"
 	"github.com/Kindling-project/kindling/collector/pkg/component/consumer/processor/k8sprocessor"
 	"github.com/Kindling-project/kindling/collector/pkg/component/controller"
@@ -86,6 +87,7 @@ func (a *Application) registerFactory() {
 	a.componentsFactory.RegisterProcessor(aggregateprocessor.Type, aggregateprocessor.New, aggregateprocessor.NewDefaultConfig())
 	a.componentsFactory.RegisterAnalyzer(tcpconnectanalyzer.Type.String(), tcpconnectanalyzer.New, tcpconnectanalyzer.NewDefaultConfig())
 	a.componentsFactory.RegisterExporter(cameraexporter.Type, cameraexporter.New, cameraexporter.NewDefaultConfig())
+	a.componentsFactory.RegisterExporter(prometheusexporter.Type, prometheusexporter.NewExporter, prometheusexporter.Config{})
 }
 
 func (a *Application) readInConfig(path string) error {
@@ -107,14 +109,16 @@ func (a *Application) readInConfig(path string) error {
 func (a *Application) buildPipeline() error {
 	// TODO: Build pipeline via configuration to implement dependency injection
 	// Initialize exporters
-	otelExporterFactory := a.componentsFactory.Exporters[otelexporter.Otel]
-	otelExporter := otelExporterFactory.NewFunc(otelExporterFactory.Config, a.telemetry.GetTelemetryTools(otelexporter.Otel))
+	prometheusExporterFactory := a.componentsFactory.Exporters[prometheusexporter.Type]
+	prometheusExporter := prometheusExporterFactory.NewFunc(prometheusExporterFactory.Config, a.telemetry.GetTelemetryTools(prometheusexporter.Type))
+	//otelExporterFactory := a.componentsFactory.Exporters[otelexporter.Otel]
+	//otelExporter := otelExporterFactory.NewFunc(otelExporterFactory.Config, a.telemetry.GetTelemetryTools(otelexporter.Otel))
 	cameraExporterFactory := a.componentsFactory.Exporters[cameraexporter.Type]
 	cameraExporter := cameraExporterFactory.NewFunc(cameraExporterFactory.Config, a.telemetry.GetTelemetryTools(cameraexporter.Type))
 	// Initialize all processors
 	// 1. DataGroup Aggregator
 	aggregateProcessorFactory := a.componentsFactory.Processors[aggregateprocessor.Type]
-	aggregateProcessor := aggregateProcessorFactory.NewFunc(aggregateProcessorFactory.Config, a.telemetry.GetTelemetryTools(aggregateprocessor.Type), otelExporter)
+	aggregateProcessor := aggregateProcessorFactory.NewFunc(aggregateProcessorFactory.Config, a.telemetry.GetTelemetryTools(aggregateprocessor.Type), prometheusExporter)
 	// 2. Kubernetes metadata processor
 	k8sProcessorFactory := a.componentsFactory.Processors[k8sprocessor.K8sMetadata]
 	k8sMetadataProcessor := k8sProcessorFactory.NewFunc(k8sProcessorFactory.Config, a.telemetry.GetTelemetryTools(k8sprocessor.K8sMetadata), aggregateProcessor)
@@ -125,7 +129,7 @@ func (a *Application) buildPipeline() error {
 	// use its configuration to initialize the conntracker module which is also used by others.
 	networkAnalyzer := networkAnalyzerFactory.NewFunc(networkAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(network.Network.String()), []consumer.Consumer{k8sMetadataProcessor})
 	// 2. Layer 4 TCP events analyzer
-	aggregateProcessorForTcp := aggregateProcessorFactory.NewFunc(aggregateProcessorFactory.Config, a.telemetry.GetTelemetryTools(aggregateprocessor.Type), otelExporter)
+	aggregateProcessorForTcp := aggregateProcessorFactory.NewFunc(aggregateProcessorFactory.Config, a.telemetry.GetTelemetryTools(aggregateprocessor.Type), prometheusExporter)
 	k8sMetadataProcessor2 := k8sProcessorFactory.NewFunc(k8sProcessorFactory.Config, a.telemetry.GetTelemetryTools(aggregateprocessor.Type), aggregateProcessorForTcp)
 	tcpAnalyzerFactory := a.componentsFactory.Analyzers[tcpmetricanalyzer.TcpMetric.String()]
 	tcpAnalyzer := tcpAnalyzerFactory.NewFunc(tcpAnalyzerFactory.Config, a.telemetry.GetTelemetryTools(tcpmetricanalyzer.TcpMetric.String()), []consumer.Consumer{k8sMetadataProcessor2})
