@@ -267,161 +267,161 @@ int getEvent(void** pp_kindling_event) {
   p_kindling_event->context.tinfo.uid = threadInfo->m_uid;
   p_kindling_event->context.tinfo.gid = threadInfo->m_gid;
   p_kindling_event->context.fdInfo.num = ev->get_fd_num();
-  if (nullptr != fdInfo) {
-    p_kindling_event->context.fdInfo.fdType = fdInfo->m_type;
-
-    switch (fdInfo->m_type) {
-      case SCAP_FD_FILE:
-      case SCAP_FD_FILE_V2: {
-        string name = fdInfo->m_name;
-        size_t pos = name.rfind('/');
-        if (pos != string::npos) {
-          if (pos < name.size() - 1) {
-            string fileName = name.substr(pos + 1, string::npos);
-            memcpy(p_kindling_event->context.fdInfo.filename, fileName.data(), fileName.length());
-            if (pos != 0) {
-              name.resize(pos);
-
-              strcpy(p_kindling_event->context.fdInfo.directory, (char*)name.data());
-            } else {
-              strcpy(p_kindling_event->context.fdInfo.directory, "/");
-            }
-          }
-        }
-        break;
-      }
-      case SCAP_FD_IPV4_SOCK:
-        p_kindling_event->context.fdInfo.protocol = get_protocol(fdInfo->get_l4proto());
-        p_kindling_event->context.fdInfo.role = fdInfo->is_role_server();
-        p_kindling_event->context.fdInfo.sip[0] = fdInfo->m_sockinfo.m_ipv4info.m_fields.m_sip;
-        p_kindling_event->context.fdInfo.dip[0] = fdInfo->m_sockinfo.m_ipv4info.m_fields.m_dip;
-        p_kindling_event->context.fdInfo.sport = fdInfo->m_sockinfo.m_ipv4info.m_fields.m_sport;
-        p_kindling_event->context.fdInfo.dport = fdInfo->m_sockinfo.m_ipv4info.m_fields.m_dport;
-        break;
-      case SCAP_FD_IPV4_SERVSOCK:
-        p_kindling_event->context.fdInfo.protocol = get_protocol(fdInfo->get_l4proto());
-        p_kindling_event->context.fdInfo.role = fdInfo->is_role_server();
-        p_kindling_event->context.fdInfo.dip[0] = fdInfo->m_sockinfo.m_ipv4serverinfo.m_ip;
-        p_kindling_event->context.fdInfo.dport = fdInfo->m_sockinfo.m_ipv4serverinfo.m_port;
-        break;
-      case SCAP_FD_IPV6_SOCK:
-        p_kindling_event->context.fdInfo.protocol = get_protocol(fdInfo->get_l4proto());
-        p_kindling_event->context.fdInfo.role = fdInfo->is_role_server();
-        memcpy(p_kindling_event->context.fdInfo.sip, fdInfo->m_sockinfo.m_ipv6info.m_fields.m_sip.m_b, sizeof(fdInfo->m_sockinfo.m_ipv6info.m_fields.m_sip.m_b));
-        memcpy(p_kindling_event->context.fdInfo.dip, fdInfo->m_sockinfo.m_ipv6info.m_fields.m_dip.m_b, sizeof(fdInfo->m_sockinfo.m_ipv6info.m_fields.m_dip.m_b));
-        p_kindling_event->context.fdInfo.sport = fdInfo->m_sockinfo.m_ipv6info.m_fields.m_sport;
-        p_kindling_event->context.fdInfo.dport = fdInfo->m_sockinfo.m_ipv6info.m_fields.m_dport;
-        break;
-      case SCAP_FD_IPV6_SERVSOCK:
-        p_kindling_event->context.fdInfo.protocol = get_protocol(fdInfo->get_l4proto());
-        p_kindling_event->context.fdInfo.role = fdInfo->is_role_server();
-        memcpy(p_kindling_event->context.fdInfo.dip, fdInfo->m_sockinfo.m_ipv6serverinfo.m_ip.m_b, sizeof(fdInfo->m_sockinfo.m_ipv6serverinfo.m_ip.m_b));
-        p_kindling_event->context.fdInfo.dport = fdInfo->m_sockinfo.m_ipv6serverinfo.m_port;
-        break;
-      case SCAP_FD_UNIX_SOCK:
-        p_kindling_event->context.fdInfo.source = fdInfo->m_sockinfo.m_unixinfo.m_fields.m_source;
-        p_kindling_event->context.fdInfo.destination =
-            fdInfo->m_sockinfo.m_unixinfo.m_fields.m_dest;
-        break;
-      default:
-        break;
-    }
-  }
-
-  switch (ev->get_type()) {
-    case PPME_TCP_RCV_ESTABLISHED_E:
-    case PPME_TCP_CLOSE_E: {
-      auto pTuple = ev->get_param_value_raw("tuple");
-      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
-
-      auto pRtt = ev->get_param_value_raw("srtt");
-      if (pRtt != NULL) {
-        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "rtt");
-        memcpy(p_kindling_event->userAttributes[userAttNumber].value, pRtt->m_val, pRtt->m_len);
-        p_kindling_event->userAttributes[userAttNumber].valueType = UINT32;
-        p_kindling_event->userAttributes[userAttNumber].len = pRtt->m_len;
-        userAttNumber++;
-      }
-      break;
-    }
-    case PPME_TCP_CONNECT_X: {
-      auto pTuple = ev->get_param_value_raw("tuple");
-      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
-      auto pRetVal = ev->get_param_value_raw("retval");
-      if (pRetVal != NULL) {
-        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "retval");
-        memcpy(p_kindling_event->userAttributes[userAttNumber].value, pRetVal->m_val,
-               pRetVal->m_len);
-        p_kindling_event->userAttributes[userAttNumber].valueType = UINT64;
-        p_kindling_event->userAttributes[userAttNumber].len = pRetVal->m_len;
-        userAttNumber++;
-      }
-      break;
-    }
-    case PPME_TCP_DROP_E:
-    case PPME_TCP_SET_STATE_E: {
-      auto pTuple = ev->get_param_value_raw("tuple");
-      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
-      auto old_state = ev->get_param_value_raw("old_state");
-      if (old_state != NULL) {
-        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "old_state");
-        memcpy(p_kindling_event->userAttributes[userAttNumber].value, old_state->m_val,
-               old_state->m_len);
-        p_kindling_event->userAttributes[userAttNumber].len = old_state->m_len;
-        p_kindling_event->userAttributes[userAttNumber].valueType = INT32;
-        userAttNumber++;
-      }
-      auto new_state = ev->get_param_value_raw("new_state");
-      if (new_state != NULL) {
-        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "new_state");
-        memcpy(p_kindling_event->userAttributes[userAttNumber].value, new_state->m_val,
-               new_state->m_len);
-        p_kindling_event->userAttributes[userAttNumber].valueType = INT32;
-        p_kindling_event->userAttributes[userAttNumber].len = new_state->m_len;
-        userAttNumber++;
-      }
-      break;
-    }
-    case PPME_TCP_SEND_RESET_E:
-    case PPME_TCP_RECEIVE_RESET_E: {
-      auto pTuple = ev->get_param_value_raw("tuple");
-      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
-      break;
-    }
-    case PPME_TCP_RETRANCESMIT_SKB_E:{
-      auto pTuple = ev->get_param_value_raw("tuple");
-      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
-
-      auto segs = ev->get_param_value_raw("segs");
-      if (segs != NULL){
-        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "segs");
-        memcpy(p_kindling_event->userAttributes[userAttNumber].value, segs->m_val,
-               segs->m_len);
-        p_kindling_event->userAttributes[userAttNumber].len = segs->m_len;
-        p_kindling_event->userAttributes[userAttNumber].valueType = INT32;
-        userAttNumber++;
-      }
-      break;
-    }
-    default: {
-      uint16_t paramsNumber = ev->get_num_params();
-      // Since current data structure specifies the maximum count of `user_attributes`
-      if ((paramsNumber + userAttNumber) > MAX_USERATTR_NUM) {
-        paramsNumber = MAX_USERATTR_NUM - userAttNumber;
-      }
-      // TODO Add another branch to verify the number of userAttNumber is less than MAX_USERATTR_NUM
-      // after the program becomes more complexd
-      for (auto i = 0; i < paramsNumber; i++) {
-        strcpy(p_kindling_event->userAttributes[userAttNumber].key, (char*)ev->get_param_name(i));
-        memcpy(p_kindling_event->userAttributes[userAttNumber].value, ev->get_param(i)->m_val,
-               ev->get_param(i)->m_len);
-        p_kindling_event->userAttributes[userAttNumber].len = ev->get_param(i)->m_len;
-        p_kindling_event->userAttributes[userAttNumber].valueType =
-            get_type(ev->get_param_info(i)->type);
-        userAttNumber++;
-      }
-    }
-  }
+//  if (nullptr != fdInfo) {
+//    p_kindling_event->context.fdInfo.fdType = fdInfo->m_type;
+//
+//    switch (fdInfo->m_type) {
+//      case SCAP_FD_FILE:
+//      case SCAP_FD_FILE_V2: {
+//        string name = fdInfo->m_name;
+//        size_t pos = name.rfind('/');
+//        if (pos != string::npos) {
+//          if (pos < name.size() - 1) {
+//            string fileName = name.substr(pos + 1, string::npos);
+//            memcpy(p_kindling_event->context.fdInfo.filename, fileName.data(), fileName.length());
+//            if (pos != 0) {
+//              name.resize(pos);
+//
+//              strcpy(p_kindling_event->context.fdInfo.directory, (char*)name.data());
+//            } else {
+//              strcpy(p_kindling_event->context.fdInfo.directory, "/");
+//            }
+//          }
+//        }
+//        break;
+//      }
+//      case SCAP_FD_IPV4_SOCK:
+//        p_kindling_event->context.fdInfo.protocol = get_protocol(fdInfo->get_l4proto());
+//        p_kindling_event->context.fdInfo.role = fdInfo->is_role_server();
+//        p_kindling_event->context.fdInfo.sip[0] = fdInfo->m_sockinfo.m_ipv4info.m_fields.m_sip;
+//        p_kindling_event->context.fdInfo.dip[0] = fdInfo->m_sockinfo.m_ipv4info.m_fields.m_dip;
+//        p_kindling_event->context.fdInfo.sport = fdInfo->m_sockinfo.m_ipv4info.m_fields.m_sport;
+//        p_kindling_event->context.fdInfo.dport = fdInfo->m_sockinfo.m_ipv4info.m_fields.m_dport;
+//        break;
+//      case SCAP_FD_IPV4_SERVSOCK:
+//        p_kindling_event->context.fdInfo.protocol = get_protocol(fdInfo->get_l4proto());
+//        p_kindling_event->context.fdInfo.role = fdInfo->is_role_server();
+//        p_kindling_event->context.fdInfo.dip[0] = fdInfo->m_sockinfo.m_ipv4serverinfo.m_ip;
+//        p_kindling_event->context.fdInfo.dport = fdInfo->m_sockinfo.m_ipv4serverinfo.m_port;
+//        break;
+//      case SCAP_FD_IPV6_SOCK:
+//        p_kindling_event->context.fdInfo.protocol = get_protocol(fdInfo->get_l4proto());
+//        p_kindling_event->context.fdInfo.role = fdInfo->is_role_server();
+//        memcpy(p_kindling_event->context.fdInfo.sip, fdInfo->m_sockinfo.m_ipv6info.m_fields.m_sip.m_b, sizeof(fdInfo->m_sockinfo.m_ipv6info.m_fields.m_sip.m_b));
+//        memcpy(p_kindling_event->context.fdInfo.dip, fdInfo->m_sockinfo.m_ipv6info.m_fields.m_dip.m_b, sizeof(fdInfo->m_sockinfo.m_ipv6info.m_fields.m_dip.m_b));
+//        p_kindling_event->context.fdInfo.sport = fdInfo->m_sockinfo.m_ipv6info.m_fields.m_sport;
+//        p_kindling_event->context.fdInfo.dport = fdInfo->m_sockinfo.m_ipv6info.m_fields.m_dport;
+//        break;
+//      case SCAP_FD_IPV6_SERVSOCK:
+//        p_kindling_event->context.fdInfo.protocol = get_protocol(fdInfo->get_l4proto());
+//        p_kindling_event->context.fdInfo.role = fdInfo->is_role_server();
+//        memcpy(p_kindling_event->context.fdInfo.dip, fdInfo->m_sockinfo.m_ipv6serverinfo.m_ip.m_b, sizeof(fdInfo->m_sockinfo.m_ipv6serverinfo.m_ip.m_b));
+//        p_kindling_event->context.fdInfo.dport = fdInfo->m_sockinfo.m_ipv6serverinfo.m_port;
+//        break;
+//      case SCAP_FD_UNIX_SOCK:
+//        p_kindling_event->context.fdInfo.source = fdInfo->m_sockinfo.m_unixinfo.m_fields.m_source;
+//        p_kindling_event->context.fdInfo.destination =
+//            fdInfo->m_sockinfo.m_unixinfo.m_fields.m_dest;
+//        break;
+//      default:
+//        break;
+//    }
+//  }
+//
+//  switch (ev->get_type()) {
+//    case PPME_TCP_RCV_ESTABLISHED_E:
+//    case PPME_TCP_CLOSE_E: {
+//      auto pTuple = ev->get_param_value_raw("tuple");
+//      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
+//
+//      auto pRtt = ev->get_param_value_raw("srtt");
+//      if (pRtt != NULL) {
+//        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "rtt");
+//        memcpy(p_kindling_event->userAttributes[userAttNumber].value, pRtt->m_val, pRtt->m_len);
+//        p_kindling_event->userAttributes[userAttNumber].valueType = UINT32;
+//        p_kindling_event->userAttributes[userAttNumber].len = pRtt->m_len;
+//        userAttNumber++;
+//      }
+//      break;
+//    }
+//    case PPME_TCP_CONNECT_X: {
+//      auto pTuple = ev->get_param_value_raw("tuple");
+//      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
+//      auto pRetVal = ev->get_param_value_raw("retval");
+//      if (pRetVal != NULL) {
+//        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "retval");
+//        memcpy(p_kindling_event->userAttributes[userAttNumber].value, pRetVal->m_val,
+//               pRetVal->m_len);
+//        p_kindling_event->userAttributes[userAttNumber].valueType = UINT64;
+//        p_kindling_event->userAttributes[userAttNumber].len = pRetVal->m_len;
+//        userAttNumber++;
+//      }
+//      break;
+//    }
+//    case PPME_TCP_DROP_E:
+//    case PPME_TCP_SET_STATE_E: {
+//      auto pTuple = ev->get_param_value_raw("tuple");
+//      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
+//      auto old_state = ev->get_param_value_raw("old_state");
+//      if (old_state != NULL) {
+//        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "old_state");
+//        memcpy(p_kindling_event->userAttributes[userAttNumber].value, old_state->m_val,
+//               old_state->m_len);
+//        p_kindling_event->userAttributes[userAttNumber].len = old_state->m_len;
+//        p_kindling_event->userAttributes[userAttNumber].valueType = INT32;
+//        userAttNumber++;
+//      }
+//      auto new_state = ev->get_param_value_raw("new_state");
+//      if (new_state != NULL) {
+//        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "new_state");
+//        memcpy(p_kindling_event->userAttributes[userAttNumber].value, new_state->m_val,
+//               new_state->m_len);
+//        p_kindling_event->userAttributes[userAttNumber].valueType = INT32;
+//        p_kindling_event->userAttributes[userAttNumber].len = new_state->m_len;
+//        userAttNumber++;
+//      }
+//      break;
+//    }
+//    case PPME_TCP_SEND_RESET_E:
+//    case PPME_TCP_RECEIVE_RESET_E: {
+//      auto pTuple = ev->get_param_value_raw("tuple");
+//      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
+//      break;
+//    }
+//    case PPME_TCP_RETRANCESMIT_SKB_E:{
+//      auto pTuple = ev->get_param_value_raw("tuple");
+//      userAttNumber = setTuple(p_kindling_event, pTuple, userAttNumber);
+//
+//      auto segs = ev->get_param_value_raw("segs");
+//      if (segs != NULL){
+//        strcpy(p_kindling_event->userAttributes[userAttNumber].key, "segs");
+//        memcpy(p_kindling_event->userAttributes[userAttNumber].value, segs->m_val,
+//               segs->m_len);
+//        p_kindling_event->userAttributes[userAttNumber].len = segs->m_len;
+//        p_kindling_event->userAttributes[userAttNumber].valueType = INT32;
+//        userAttNumber++;
+//      }
+//      break;
+//    }
+//    default: {
+//      uint16_t paramsNumber = ev->get_num_params();
+//      // Since current data structure specifies the maximum count of `user_attributes`
+//      if ((paramsNumber + userAttNumber) > MAX_USERATTR_NUM) {
+//        paramsNumber = MAX_USERATTR_NUM - userAttNumber;
+//      }
+//      // TODO Add another branch to verify the number of userAttNumber is less than MAX_USERATTR_NUM
+//      // after the program becomes more complexd
+//      for (auto i = 0; i < paramsNumber; i++) {
+//        strcpy(p_kindling_event->userAttributes[userAttNumber].key, (char*)ev->get_param_name(i));
+//        memcpy(p_kindling_event->userAttributes[userAttNumber].value, ev->get_param(i)->m_val,
+//               ev->get_param(i)->m_len);
+//        p_kindling_event->userAttributes[userAttNumber].len = ev->get_param(i)->m_len;
+//        p_kindling_event->userAttributes[userAttNumber].valueType =
+//            get_type(ev->get_param_info(i)->type);
+//        userAttNumber++;
+//      }
+//    }
+//  }
   p_kindling_event->paramsNumber = userAttNumber;
   strcpy(p_kindling_event->name, (char*)ev->get_name());
   char* tmp_comm;
