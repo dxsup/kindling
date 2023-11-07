@@ -40,7 +40,7 @@ load_kernel_probe() {
 	echo "* Trying to find precompiled ${PROBE_NAME} for ${KERNEL_RELEASE}"
 
 	local KINDLING_PROBE_FILENAME="${KERNEL_RELEASE}.ko"
-  local APPROXIMATE_PROBE_FILENAME="${APPROXIMATE_KERNEL_VERSION}.ko"
+	local APPROXIMATE_PROBE_FILENAME=$(ls "/opt/.kindling/" | grep -E "${APPROXIMATE_KERNEL_VERSION}.ko" | tail -1)
 	if [ -f "/opt/.kindling/${KINDLING_PROBE_FILENAME}" ]; then
 		echo "* Found precompiled module at /opt/.kindling/${KINDLING_PROBE_FILENAME}, loading module"
 		if insmod "/opt/.kindling/${KINDLING_PROBE_FILENAME}" > /dev/null 2>&1; then
@@ -66,8 +66,8 @@ load_bpf_probe() {
 	fi
 
 	local BPF_PROBE_FILENAME="${KERNEL_RELEASE}.o"
-
-	if [ -f "/opt/.kindling/${BPF_PROBE_FILENAME}" ]; then
+	APPROXIMATE_BPF_PROBE_FILENAME=$(ls "/opt/.kindling/" | grep -E "${APPROXIMATE_KERNEL_VERSION}.o" | tail -1)
+	if [ -f "/opt/.kindling/${BPF_PROBE_FILENAME}" ] || [ -f "/opt/.kindling/${APPROXIMATE_BPF_PROBE_FILENAME}" ]; then
 		if [ ! -f /proc/sys/net/core/bpf_jit_enable ]; then
 			echo "**********************************************************"
 			echo "** BPF doesn't have JIT enabled, performance might be   **"
@@ -78,8 +78,11 @@ load_bpf_probe() {
 		fi
 
 		echo "* BPF probe located, it's now possible to start kindling"
-
-		ln -sf "/opt/.kindling/${BPF_PROBE_FILENAME}" "/opt/probe.o"
+		if [ -f "/opt/.kindling/${BPF_PROBE_FILENAME}" ]; then
+			ln -sf "/opt/.kindling/${BPF_PROBE_FILENAME}" "/opt/probe.o"
+		else
+			ln -sf "/opt/.kindling/${APPROXIMATE_BPF_PROBE_FILENAME}" "/opt/probe.o"
+		fi
 		create_kernel_support_file
 		exit $?
 	else
@@ -96,7 +99,7 @@ create_kernel_support_file() {
 
 ARCH=$(uname -m)
 KERNEL_RELEASE=$(uname -r)
-APPROXIMATE_KERNEL_VERSION=$(echo "$KERNEL_RELEASE" | awk -F. '{print $1"."$2"."$3"."$(NF-1)"."$NF}')
+APPROXIMATE_KERNEL_VERSION=$(echo "$KERNEL_RELEASE" | awk -F. '{print $1"."$2"."$3".*"$(NF-1)"."$NF}')
 SCRIPT_NAME=$(basename "${0}")
 PROBE_NAME="kindling-falcolib-probe"
 MAX_RMMOD_WAIT=60
